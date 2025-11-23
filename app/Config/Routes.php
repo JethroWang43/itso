@@ -96,3 +96,5 @@ $routes->get('reservations/cancel/(:num)', 'Reservations::cancel/$1');
 // reschedule routes (non-prefixed)
 $routes->get('reservations/reschedule/(:num)', 'Reservations::reschedule/$1');
 $routes->post('reservations/rescheduleSubmit', 'Reservations::rescheduleSubmit');
+
+$routes->get('reports', 'Reports::index');
