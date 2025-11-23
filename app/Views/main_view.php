@@ -147,7 +147,7 @@
                 <a class="btn btn-primary" href="<?= base_url('equipment/add') ?>">+ Add Equipment</a>
                 <a class="btn btn-success" href="<?= base_url('borrowing/returns') ?>">Process Return</a>
                 <a class="btn btn-warning text-white" href="<?= base_url('borrowing') ?>">New Borrowing</a>
-                <a class="btn btn-secondary" href="#">Generate Report</a>
+                <a class="btn btn-secondary" href="<?= base_url('reports') ?>">Generate Report</a>
             </div>
         </div>
 
