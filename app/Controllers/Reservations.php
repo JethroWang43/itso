@@ -1,14 +1,40 @@
 <?php
 namespace App\Controllers;
 
-class Reservations extends BaseController {
+class Reservations extends BaseController
+{
     protected function ensureReservations()
     {
         $session = session();
-        if (! $session->has('reservations')) {
+        if (!$session->has('reservations')) {
             $session->set('reservations', []);
             $session->set('reservations_next_id', 1);
         }
+    }
+
+    /**
+     * Custom validation rule to check if a date is today or in the future.
+     * Used for reserve_date and due_date fields.
+     *
+     * @param string $str The date string to validate.
+     * @return bool True if the date is valid and today or later.
+     */
+    public function isTodayOrFuture(string $str): bool
+    {
+        if (!empty($str)) {
+            try {
+                $checkDate = new \DateTime($str);
+                $today = new \DateTime(date('Y-m-d')); // Today at midnight
+                // Compare only the date component
+                return $checkDate >= $today;
+            } catch (\Exception $e) {
+                // Return false if date parsing fails, although valid_date should catch most cases
+                return false;
+            }
+        }
+
+        // If string is empty, another rule (required) should catch it.
+        return true;
     }
 
     public function index()
@@ -34,11 +60,13 @@ class Reservations extends BaseController {
         // Simple pagination for reservations list (controller-side)
         $perPage = 6;
         $page = (int) ($this->request->getGet('page') ?? 1);
-        if ($page < 1) $page = 1;
+        if ($page < 1)
+            $page = 1;
         $all = is_array($reservations) ? array_values($reservations) : [];
         $totalFiltered = count($all);
         $pages = max(1, (int) ceil($totalFiltered / $perPage));
-        if ($page > $pages) $page = $pages;
+        if ($page > $pages)
+            $page = $pages;
         $offset = ($page - 1) * $perPage;
         $paged = array_slice($all, $offset, $perPage);
 
@@ -52,9 +80,9 @@ class Reservations extends BaseController {
         ];
 
         return view('include\\head_view', $data)
-            .view('include\\nav_view')
-            .view('reservations_list_view', $data)
-            .view('include\\foot_view');
+            . view('include\\nav_view')
+            . view('reservations_list_view', $data)
+            . view('include\\foot_view');
     }
 
     public function create($equipmentId = null)
@@ -69,7 +97,8 @@ class Reservations extends BaseController {
             try {
                 $em = new \App\Models\EquipmentModel();
                 $row = $em->find($equipmentId);
-                if ($row) $equipmentItem = $em->normalize($row);
+                if ($row)
+                    $equipmentItem = $em->normalize($row);
             } catch (\Throwable $e) {
                 $equipmentItem = null;
             }
@@ -105,18 +134,64 @@ class Reservations extends BaseController {
             'equipment' => $equipmentItem ?? ($equipment[$equipmentId] ?? null),
             'users' => $users,
             'users_meta' => $users_meta,
+            // Ensure validation service is available for the view to display errors
+            'validation' => \Config\Services::validation(),
         ];
 
         return view('include\\head_view', $data)
-            .view('include\\nav_view')
-            .view('reserve_form_view', $data)
-            .view('include\\foot_view');
+            . view('include\\nav_view')
+            . view('reserve_form_view', $data)
+            . view('include\\foot_view');
     }
 
     public function submit()
     {
         $this->ensureReservations();
         $session = session();
+
+        // ----------------------------
+        // VALIDATION RULES
+        // ----------------------------
+        $rules = [
+            'equipment_id' => 'required|integer',
+            'name' => 'required|min_length[3]',
+            'id_number' => 'required|numeric',
+            'use_location' => 'required|min_length[2]',
+            'reserve_date' => 'required|valid_date',
+            'reserve_time' => 'required',
+            'due_date' => 'permit_empty|valid_date'
+        ];
+
+        $messages = [
+            'name' => [
+                'required' => 'Please enter a name.',
+                'min_length' => 'Name must be at least 3 characters.'
+            ],
+            'id_number' => [
+                'required' => 'ID Number is required.',
+                'numeric' => 'ID Number must be numbers only.'
+            ],
+            'use_location' => [
+                'required' => 'Location is required.',
+                'regex_match' => 'Location must follow a format like “Lab A - Room 101”.'
+            ],
+
+            'reserve_date' => [
+                'required' => 'Pick a reservation date.'
+            ],
+            'reserve_time' => [
+                'required' => 'Pick a reservation time.'
+            ]
+        ];
+
+        // If validation fails → return with errors + old input
+        if (!$this->validate($rules, $messages)) {
+            return redirect()->back()->withInput()->with('errors', $this->validator->getErrors());
+        }
+
+        // ----------------------------
+        // PASSED VALIDATION → PROCESS
+        // ----------------------------
 
         $equipmentId = (int) $this->request->getPost('equipment_id');
         $user_id = $this->request->getPost('user_id');
@@ -130,10 +205,7 @@ class Reservations extends BaseController {
         $reservations = $session->get('reservations');
         $next = $session->get('reservations_next_id');
 
-        $reserved_for = null;
-        if (! empty($reserve_date)) {
-            $reserved_for = $reserve_date . ' ' . ($reserve_time ?: '00:00');
-        }
+        $reserved_for = $reserve_date . ' ' . ($reserve_time ?: '00:00');
 
         $record = [
             'id' => $next,
@@ -151,28 +223,28 @@ class Reservations extends BaseController {
         $session->set('reservations', $reservations);
         $session->set('reservations_next_id', $next + 1);
 
-        // Try to update equipment status to 'Reserved' so it appears reserved immediately.
+        // Update equipment status
         try {
-            if (! empty($equipmentId)) {
+            if (!empty($equipmentId)) {
                 $em = new \App\Models\EquipmentModel();
                 $update = ['status' => 'Reserved', 'last_updated' => date('Y-m-d H:i:s')];
-                if (! empty($use_location)) $update['location'] = $use_location;
+                if (!empty($use_location))
+                    $update['location'] = $use_location;
                 $em->update($equipmentId, $update);
             }
         } catch (\Throwable $e) {
-            // ignore DB errors
         }
 
-        // After reserving, go back to the reservations index so user sees the reservation.
         return redirect()->to('reservations');
     }
+
 
     public function cancel($id)
     {
         $this->ensureReservations();
         $session = session();
         $reservations = $session->get('reservations');
-        $id = (int)$id;
+        $id = (int) $id;
         if (isset($reservations[$id])) {
             $equipmentId = $reservations[$id]['equipment_id'];
             unset($reservations[$id]);
@@ -180,7 +252,7 @@ class Reservations extends BaseController {
 
             // Also try to update the equipment status back to 'Available' in DB.
             try {
-                if (! empty($equipmentId)) {
+                if (!empty($equipmentId)) {
                     $em = new \App\Models\EquipmentModel();
                     $em->update($equipmentId, ['status' => 'Available', 'last_updated' => date('Y-m-d H:i:s')]);
                 }
@@ -201,8 +273,8 @@ class Reservations extends BaseController {
         $session = session();
 
         $reservations = $session->get('reservations') ?? [];
-        $id = (int)$id;
-        if (! isset($reservations[$id])) {
+        $id = (int) $id;
+        if (!isset($reservations[$id])) {
             return redirect()->to('reservations');
         }
 
@@ -210,7 +282,7 @@ class Reservations extends BaseController {
         $equipmentId = $res['equipment_id'] ?? null;
 
         // Create a borrow record in session (mirror Borrowing::submit behavior)
-        if (! $session->has('borrows')) {
+        if (!$session->has('borrows')) {
             $session->set('borrows', []);
             $session->set('borrows_next_id', 1);
             $session->set('borrow_history', []);
@@ -240,7 +312,7 @@ class Reservations extends BaseController {
 
         // Update equipment status to Borrowed in DB
         try {
-            if (! empty($equipmentId)) {
+            if (!empty($equipmentId)) {
                 $em = new \App\Models\EquipmentModel();
                 $em->update($equipmentId, ['status' => 'Borrowed', 'last_updated' => date('Y-m-d H:i:s')]);
             }
@@ -265,8 +337,8 @@ class Reservations extends BaseController {
         $this->ensureReservations();
         $session = session();
         $reservations = $session->get('reservations') ?? [];
-        $id = (int)$id;
-        if (! isset($reservations[$id])) {
+        $id = (int) $id;
+        if (!isset($reservations[$id])) {
             return redirect()->to('reservations');
         }
 
@@ -286,21 +358,25 @@ class Reservations extends BaseController {
         }
 
         $equipment_label = $res['equipment_id'] ?? '';
-        if (! empty($equipment) && isset($equipment[$res['equipment_id']])) {
+        if (!empty($equipment) && isset($equipment[$res['equipment_id']])) {
             $ei = $equipment[$res['equipment_id']];
             $equipment_label = ($ei['name'] ?? ($ei['equipment_id'] ?? $ei['id']));
         }
+
+        // Pass validation service for reschedule form errors
+        $validation = \Config\Services::validation();
 
         $data = [
             'title' => 'Reschedule Reservation',
             'reservation' => $res,
             'equipment_label' => $equipment_label,
+            'validation' => $validation,
         ];
 
         return view('include\\head_view', $data)
-            .view('include\\nav_view')
-            .view('reschedule_form_view', $data)
-            .view('include\\foot_view');
+            . view('include\\nav_view')
+            . view('reschedule_form_view', $data)
+            . view('include\\foot_view');
     }
 
     /**
@@ -310,29 +386,50 @@ class Reservations extends BaseController {
     {
         $this->ensureReservations();
         $session = session();
+
+        // VALIDATION RULES
+        $rules = [
+            'reserve_date' => 'required|valid_date|isTodayOrFuture',
+            'reserve_time' => 'required|validTime'
+        ];
+
+        $messages = [
+            'reserve_date' => [
+                'required' => 'Please choose a reservation date.',
+                'valid_date' => 'Invalid date format.',
+                'isTodayOrFuture' => 'Reservation date cannot be in the past.'
+            ],
+            'reserve_time' => [
+                'required' => 'Please choose a reservation time.',
+                'validTime' => 'Time must be in HH:MM 24-hour format.'
+            ]
+        ];
+
+        if (!$this->validate($rules, $messages)) {
+            return redirect()->back()->withInput()->with('errors', $this->validator->getErrors());
+        }
+
         $id = (int) $this->request->getPost('id');
         $reserve_date = $this->request->getPost('reserve_date');
         $reserve_time = $this->request->getPost('reserve_time');
 
         $reservations = $session->get('reservations') ?? [];
-        if (! isset($reservations[$id])) {
+
+        if (!isset($reservations[$id])) {
             session()->setFlashdata('error', 'Reservation not found.');
             return redirect()->to('reservations');
         }
 
-        $reserved_for = null;
-        if (! empty($reserve_date)) {
-            $reserved_for = $reserve_date . ' ' . ($reserve_time ?: '00:00');
-        }
+        $reserved_for = $reserve_date . ' ' . ($reserve_time ?? '00:00');
 
         $reservations[$id]['reserved_for'] = $reserved_for;
         $reservations[$id]['date_reserved'] = date('Y-m-d H:i:s');
+
         $session->set('reservations', $reservations);
 
         session()->setFlashdata('success', 'Reservation rescheduled.');
 
         return redirect()->to('reservations');
     }
-}
 
-?>
+}
