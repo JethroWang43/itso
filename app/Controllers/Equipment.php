@@ -3,7 +3,8 @@ namespace App\Controllers;
 
 use App\Models\EquipmentModel;
 
-class Equipment extends BaseController {
+class Equipment extends BaseController
+{
     protected $model;
 
     public function __construct()
@@ -39,7 +40,8 @@ class Equipment extends BaseController {
         // pagination
         $perPage = 6;
         $page = (int) ($this->request->getGet('page') ?? 1);
-        if ($page < 1) $page = 1;
+        if ($page < 1)
+            $page = 1;
         $offset = ($page - 1) * $perPage;
 
         // build query with optional filters
@@ -50,7 +52,7 @@ class Equipment extends BaseController {
                 ->orLike('name', $q)
                 ->orLike('description', $q)
                 ->orLike('category', $q)
-            ->groupEnd();
+                ->groupEnd();
         }
         if ($category !== '' && $category !== 'all') {
             $builder->where('category', $category);
@@ -84,9 +86,9 @@ class Equipment extends BaseController {
         ];
 
         return view('include\\head_view', $data)
-            .view('include\\nav_view')
-            .view('equipmentlist_view', $data)
-            .view('include\\foot_view');
+            . view('include\\nav_view')
+            . view('equipmentlist_view', $data)
+            . view('include\\foot_view');
     }
 
     public function add()
@@ -94,10 +96,12 @@ class Equipment extends BaseController {
         $data = ['title' => 'EMS - Add Equipment'];
 
         return view('include\\head_view', $data)
-            .view('include\\nav_view')
-            .view('addequipment_view', $data)
-            .view('include\\foot_view');
+            . view('include\\nav_view')
+            . view('addequipment_view', $data)
+            . view('include\\foot_view');
     }
+
+    // equipment.php - inside the Equipment class
 
     public function insert()
     {
@@ -138,34 +142,40 @@ class Equipment extends BaseController {
         $this->model->insert($data);
         session()->setFlashdata('success', 'Adding new equipment is successful.');
 
+        // 7. Flash success message
+        session()->setFlashdata('success', 'Equipment added successfully.');
+
+        // 8. Redirect on success
         return redirect()->to('equipment');
     }
 
     public function view($id)
     {
         $row = $this->model->find($id);
-        if (! $row) return redirect()->to('equipment');
+        if (!$row)
+            return redirect()->to('equipment');
 
         $item = $this->model->normalize($row);
 
         $data = ['title' => 'EMS - View Equipment', 'item' => $item];
 
         return view('include\\head_view', $data)
-            .view('include\\nav_view')
-            .view('viewequipment_view', $data)
-            .view('include\\foot_view');
+            . view('include\\nav_view')
+            . view('viewequipment_view', $data)
+            . view('include\\foot_view');
     }
 
     public function edit($id)
     {
         $row = $this->model->find($id);
-        if (! $row) return redirect()->to('equipment');
+        if (!$row)
+            return redirect()->to('equipment');
 
         $item = $this->model->normalize($row);
 
         // Allow pre-filling the status via query parameter (e.g. ?prefill=Borrowed)
         $prefill = $this->request->getGet('prefill');
-        if (! empty($prefill)) {
+        if (!empty($prefill)) {
             $allowed = ['Available', 'Borrowed', 'Maintenance', 'Reserved'];
             // normalize case-insensitive
             foreach ($allowed as $a) {
@@ -181,9 +191,9 @@ class Equipment extends BaseController {
         $data = ['title' => 'EMS - Edit Equipment', 'item' => $item];
 
         return view('include\\head_view', $data)
-            .view('include\\nav_view')
-            .view('updateequipment_view', $data)
-            .view('include\\foot_view');
+            . view('include\\nav_view')
+            . view('updateequipment_view', $data)
+            . view('include\\foot_view');
     }
 
     public function update($id)

@@ -95,24 +95,82 @@
         </div>
     </div>
 
-            <nav class="mt-3">
-        <ul class="pagination">
+    <nav class="mt-3">
+        <ul class="pagination justify-content-center">
             <?php
-                // Build base query preserving filters
-                $baseQs = [];
-                if (! empty($q)) $baseQs['q'] = $q;
-                if (! empty($category) && $category !== 'all') $baseQs['category'] = $category;
-                if (! empty($status) && $status !== 'all') $baseQs['status'] = $status;
+            // Define the maximum number of page links to show
+            $max_links = 5;
 
-                $pages = max(1, (int) ceil((($totalFiltered ?? $total) ?? 0) / ($perPage ?? 6)));
-                for ($p = 1; $p <= $pages; $p++):
-                    $qs = $baseQs; $qs['page'] = $p;
-                    $link = base_url('equipment') . '?' . http_build_query($qs);
+            // Set current page, defaulting to 1
+            $current_page = $page ?? 1;
+
+            // Calculate the total number of pages
+            $total_items = ($totalFiltered ?? $total) ?? 0;
+            $per_page_count = $perPage ?? 6;
+            $pages = max(1, (int) ceil($total_items / $per_page_count));
+
+            // --------------------------------------------------------
+            // LOGIC TO DETERMINE THE START AND END PAGE NUMBERS
+            // --------------------------------------------------------
+
+            // 1. Determine the ideal starting point (current page minus half the max links, rounded down)
+            $p_start = max(1, $current_page - floor($max_links / 2));
+
+            // 2. Determine the ending point, capped by the total number of pages
+            $p_end = min($pages, $p_start + $max_links - 1);
+
+            // 3. Re-adjust the start point if the end point was capped by $pages (This ensures exactly $max_links are shown if possible)
+            $p_start = max(1, $p_end - $max_links + 1);
+
+            // --------------------------------------------------------
+            // Build base query preserving filters
+            $baseQs = [];
+            if (! empty($q)) $baseQs['q'] = $q;
+            if (! empty($category) && $category !== 'all') $baseQs['category'] = $category;
+            if (! empty($status) && $status !== 'all') $baseQs['status'] = $status;
             ?>
-                <li class="page-item <?= $p == ($page ?? 1) ? 'active' : '' ?>">
+
+            <!-- Previous Button -->
+            <?php if ($current_page > 1):
+                $qs = $baseQs; $qs['page'] = $current_page - 1;
+                $link = base_url('equipment') . '?' . http_build_query($qs);
+            ?>
+                <li class="page-item">
+                    <a class="page-link" href="<?= $link ?>" aria-label="Previous">
+                        <span aria-hidden="true">&laquo;</span>
+                    </a>
+                </li>
+            <?php else: ?>
+                <li class="page-item disabled">
+                    <span class="page-link" aria-hidden="true">&laquo;</span>
+                </li>
+            <?php endif; ?>
+
+            <!-- Page Links (Max 5 shown) -->
+            <?php for ($p = $p_start; $p <= $p_end; $p++):
+                $qs = $baseQs; $qs['page'] = $p;
+                $link = base_url('equipment') . '?' . http_build_query($qs);
+            ?>
+                <li class="page-item <?= $p == $current_page ? 'active' : '' ?>">
                     <a class="page-link" href="<?= $link ?>"><?= $p ?></a>
                 </li>
             <?php endfor; ?>
+
+            <!-- Next Button -->
+            <?php if ($current_page < $pages):
+                $qs = $baseQs; $qs['page'] = $current_page + 1;
+                $link = base_url('equipment') . '?' . http_build_query($qs);
+            ?>
+                <li class="page-item">
+                    <a class="page-link" href="<?= $link ?>" aria-label="Next">
+                        <span aria-hidden="true">&raquo;</span>
+                    </a>
+                </li>
+            <?php else: ?>
+                <li class="page-item disabled">
+                    <span class="page-link" aria-hidden="true">&raquo;</span>
+                </li>
+            <?php endif; ?>
         </ul>
     </nav>
 </div>
