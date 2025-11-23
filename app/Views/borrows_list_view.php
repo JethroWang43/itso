@@ -9,6 +9,13 @@
     $perPage = $perPage ?? 6;
     $page = $page ?? 1;
     $totalFiltered = $totalFiltered ?? count($borrows);
+
+    // Available items specific variables (ensure defaults exist for robust logic)
+    $availPage = isset($_GET['avail_page']) ? (int) $_GET['avail_page'] : 1;
+    $availPerPage = 6; // Set default items per page for available list
+    
+    // Common pagination limit
+    $max_links = 5;
     ?>
 
     <div class="row mb-3">
@@ -82,6 +89,7 @@
                     </div>
                 </form>
             </div>
+
             <?php if (!empty($equipment_items)): ?>
                 <?php
                 $avail_q = isset($_GET['avail_q']) ? trim((string) $_GET['avail_q']) : '';
@@ -106,9 +114,8 @@
                         continue;
                     $availableItems[] = $c_ei;
                 }
+
                 // Pagination for available items (separate param: avail_page)
-                $availPerPage = 6;
-                $availPage = isset($_GET['avail_page']) ? (int) $_GET['avail_page'] : 1;
                 if ($availPage < 1)
                     $availPage = 1;
                 $availTotalFiltered = count($availableItems);
@@ -151,19 +158,65 @@
                         <?php endforeach; ?>
                     </tbody>
                 </table>
+
                 <?php if ($availPages > 1): ?>
                     <nav class="mt-2">
-                        <ul class="pagination pagination-sm">
+                        <ul class="pagination pagination-sm justify-content-center">
                             <?php
                             $baseQs = $_GET;
-                            for ($p = 1; $p <= $availPages; $p++):
+                            $current_page = $availPage;
+                            $pages = $availPages;
+
+                            // LOGIC FOR 5-PAGE WINDOW (Available Items)
+                            $p_start = max(1, $current_page - floor($max_links / 2));
+                            $p_end = min($pages, $p_start + $max_links - 1);
+                            $p_start = max(1, $p_end - $max_links + 1);
+                            ?>
+
+                            <!-- Previous Button (Available Items) -->
+                            <?php if ($current_page > 1):
+                                $qs = $baseQs;
+                                $qs['avail_page'] = $current_page - 1;
+                                $link = base_url('borrowing') . '?' . http_build_query($qs);
+                                ?>
+                                <li class="page-item">
+                                    <a class="page-link" href="<?= $link ?>" aria-label="Previous">
+                                        <span aria-hidden="true">&laquo;</span>
+                                    </a>
+                                </li>
+                            <?php else: ?>
+                                <li class="page-item disabled">
+                                    <span class="page-link" aria-hidden="true">&laquo;</span>
+                                </li>
+                            <?php endif; ?>
+
+                            <!-- Page Links (Available Items) -->
+                            <?php for ($p = $p_start; $p <= $p_end; $p++):
                                 $qs = $baseQs;
                                 $qs['avail_page'] = $p;
                                 $link = base_url('borrowing') . '?' . http_build_query($qs);
                                 ?>
-                                <li class="page-item <?= $p == $availPage ? 'active' : '' ?>"><a class="page-link"
+                                <li class="page-item <?= $p == $current_page ? 'active' : '' ?>"><a class="page-link"
                                         href="<?= $link ?>"><?= $p ?></a></li>
                             <?php endfor; ?>
+
+                            <!-- Next Button (Available Items) -->
+                            <?php if ($current_page < $pages):
+                                $qs = $baseQs;
+                                $qs['avail_page'] = $current_page + 1;
+                                $link = base_url('borrowing') . '?' . http_build_query($qs);
+                                ?>
+                                <li class="page-item">
+                                    <a class="page-link" href="<?= $link ?>" aria-label="Next">
+                                        <span aria-hidden="true">&raquo;</span>
+                                    </a>
+                                </li>
+                            <?php else: ?>
+                                <li class="page-item disabled">
+                                    <span class="page-link" aria-hidden="true">&raquo;</span>
+                                </li>
+                            <?php endif; ?>
+
                         </ul>
                     </nav>
                 <?php endif; ?>
@@ -215,23 +268,69 @@
                     </tbody>
                 </table>
                 <nav class="mt-3">
-                    <ul class="pagination">
+                    <ul class="pagination justify-content-center">
                         <?php
+                        // Borrowed Items Pagination Logic
+                        $current_page = $page ?? 1;
+                        $total_items = $totalFiltered ?? count($borrows ?? []);
+                        $per_page_count = $perPage ?? 6;
+                        $pages = max(1, (int) ceil($total_items / $per_page_count));
+
                         $baseQs = [];
                         if (!empty($q))
                             $baseQs['q'] = $q;
                         if (!empty($status) && $status !== 'all')
                             $baseQs['status'] = $status;
-                        $pages = max(1, (int) ceil(($totalFiltered ?? count($borrows ?? [])) / ($perPage ?? 6)));
-                        $cur = $page ?? 1;
-                        for ($p = 1; $p <= $pages; $p++):
+
+                        // LOGIC FOR 5-PAGE WINDOW (Borrowed Items)
+                        $p_start = max(1, $current_page - floor($max_links / 2));
+                        $p_end = min($pages, $p_start + $max_links - 1);
+                        $p_start = max(1, $p_end - $max_links + 1);
+                        ?>
+
+                        <!-- Previous Button (Borrowed Items) -->
+                        <?php if ($current_page > 1):
+                            $qs = $baseQs;
+                            $qs['page'] = $current_page - 1;
+                            $link = base_url('borrowing') . '?' . http_build_query($qs);
+                            ?>
+                            <li class="page-item">
+                                <a class="page-link" href="<?= $link ?>" aria-label="Previous">
+                                    <span aria-hidden="true">&laquo;</span>
+                                </a>
+                            </li>
+                        <?php else: ?>
+                            <li class="page-item disabled">
+                                <span class="page-link" aria-hidden="true">&laquo;</span>
+                            </li>
+                        <?php endif; ?>
+
+                        <!-- Page Links (Borrowed Items) -->
+                        <?php for ($p = $p_start; $p <= $p_end; $p++):
                             $qs = $baseQs;
                             $qs['page'] = $p;
                             $link = base_url('borrowing') . '?' . http_build_query($qs);
                             ?>
-                            <li class="page-item <?= $p == $cur ? 'active' : '' ?>"><a class="page-link"
+                            <li class="page-item <?= $p == $current_page ? 'active' : '' ?>"><a class="page-link"
                                     href="<?= $link ?>"><?= $p ?></a></li>
                         <?php endfor; ?>
+
+                        <!-- Next Button (Borrowed Items) -->
+                        <?php if ($current_page < $pages):
+                            $qs = $baseQs;
+                            $qs['page'] = $current_page + 1;
+                            $link = base_url('borrowing') . '?' . http_build_query($qs);
+                            ?>
+                            <li class="page-item">
+                                <a class="page-link" href="<?= $link ?>" aria-label="Next">
+                                    <span aria-hidden="true">&raquo;</span>
+                                </a>
+                            </li>
+                        <?php else: ?>
+                            <li class="page-item disabled">
+                                <span class="page-link" aria-hidden="true">&raquo;</span>
+                            </li>
+                        <?php endif; ?>
                     </ul>
                 </nav>
             <?php endif; ?>
